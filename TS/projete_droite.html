@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projeté orthogonal sur une droite</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .subtitle {
+            color: rgba(255,255,255,0.9);
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+        
+        #canvas-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        canvas {
+            display: block;
+            cursor: grab;
+        }
+        
+        canvas:active {
+            cursor: grabbing;
+        }
+        
+        canvas.moving-point {
+            cursor: move !important;
+        }
+        
+        canvas.moving-point:active {
+            cursor: move !important;
+        }
+        
+        .controls {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            max-width: 600px;
+        }
+        
+        .control-group {
+            margin: 15px 0;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+        
+        .value-display {
+            display: inline-block;
+            min-width: 40px;
+            text-align: right;
+            color: #11998e;
+            font-weight: bold;
+        }
+        
+        .legend {
+            background: rgba(255,255,255,0.95);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+            border-left: 4px solid #11998e;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+        }
+        
+        .legend-color {
+            width: 30px;
+            height: 20px;
+            border-radius: 3px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+        }
+        
+        .formula {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            border-left: 4px solid #38ef7d;
+        }
+    </style>
+</head>
+<body>
+    <h1>Projeté orthogonal d'un point sur une droite</h1>
+    <p class="subtitle">Illustration interactive en 3D - Cliquez et déplacez le point M rouge</p>
+    
+    <div id="canvas-container">
+        <canvas id="canvas" width="700" height="500"></canvas>
+    </div>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label>Position X du point M: <span class="value-display" id="mx-value">1.5</span></label>
+            <input type="range" id="mx" min="-3" max="3" step="0.1" value="1.5">
+        </div>
+        
+        <div class="control-group">
+            <label>Position Y du point M: <span class="value-display" id="my-value">2</span></label>
+            <input type="range" id="my" min="-3" max="3" step="0.1" value="2">
+        </div>
+        
+        <div class="control-group">
+            <label>Position Z du point M: <span class="value-display" id="mz-value">1</span></label>
+            <input type="range" id="mz" min="-3" max="3" step="0.1" value="1">
+        </div>
+        
+        <div class="legend">
+            <h3 style="margin-top: 0;">Légende</h3>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #3498db; width: 30px; height: 4px;"></div>
+                <span>Droite (AB)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #e74c3c;"></div>
+                <span>Point M (point initial)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #27ae60;"></div>
+                <span>Point H (projeté orthogonal de M sur (AB))</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #f39c12; width: 30px; height: 3px;"></div>
+                <span>Segment perpendiculaire [MH]</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #95a5a6; width: 30px; height: 3px; opacity: 0.5;"></div>
+                <span>Plan 𝒫 perpendiculaire à (AB)</span>
+            </div>
+        </div>
+        
+        <div class="formula">
+            <strong>Définition :</strong><br>
+            Le projeté orthogonal H du point M sur la droite (AB) est l'unique point H de (AB) tel que AB ⊥ HM.<br><br>
+            <strong>Propriété :</strong> H est aussi l'intersection de (AB) avec le plan perpendiculaire à (AB) passant par M.
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Paramètres de la scène
+        let angleX = 0.4;
+        let angleY = 0.6;
+        let isDragging = false;
+        let isMovingPoint = false;
+        let lastX, lastY;
+        
+        // Points de la droite
+        const A = {x: -2, y: -1, z: -1};
+        const B = {x: 2, y: 1, z: 1};
+        
+        // Position du point M
+        let M = {x: 1.5, y: 2, z: 1};
+        
+        // Projection 3D vers 2D
+        function project(x, y, z) {
+            let x1 = x * Math.cos(angleY) - z * Math.sin(angleY);
+            let z1 = x * Math.sin(angleY) + z * Math.cos(angleY);
+            let y1 = y * Math.cos(angleX) - z1 * Math.sin(angleX);
+            let z2 = y * Math.sin(angleX) + z1 * Math.cos(angleX);
+            
+            const scale = 80;
+            const offsetX = canvas.width / 2;
+            const offsetY = canvas.height / 2;
+            
+            return {
+                x: offsetX + x1 * scale,
+                y: offsetY - y1 * scale,
+                z: z2
+            };
+        }
+        
+        // Calculer le projeté orthogonal de M sur (AB)
+        function calculateProjection() {
+            // Vecteur AB
+            const AB = {
+                x: B.x - A.x,
+                y: B.y - A.y,
+                z: B.z - A.z
+            };
+            
+            // Vecteur AM
+            const AM = {
+                x: M.x - A.x,
+                y: M.y - A.y,
+                z: M.z - A.z
+            };
+            
+            // Produit scalaire AM.AB
+            const dot = AM.x * AB.x + AM.y * AB.y + AM.z * AB.z;
+            
+            // Norme au carré de AB
+            const AB2 = AB.x * AB.x + AB.y * AB.y + AB.z * AB.z;
+            
+            // Paramètre t pour H = A + t*AB
+            const t = dot / AB2;
+            
+            // Coordonnées de H
+            return {
+                x: A.x + t * AB.x,
+                y: A.y + t * AB.y,
+                z: A.z + t * AB.z,
+                t: t
+            };
+        }
+        
+        // Dessiner un point
+        function drawPoint(x, y, z, color, label, radius = 6) {
+            const p = project(x, y, z);
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            if (label) {
+                ctx.fillStyle = '#333';
+                ctx.font = 'bold 16px Arial';
+                ctx.fillText(label, p.x + 12, p.y + 5);
+            }
+            
+            return p;
+        }
+        
+        // Dessiner une ligne
+        function drawLine(x1, y1, z1, x2, y2, z2, color, width = 2, dashed = false) {
+            const p1 = project(x1, y1, z1);
+            const p2 = project(x2, y2, z2);
+            
+            ctx.beginPath();
+            if (dashed) {
+                ctx.setLineDash([5, 5]);
+            } else {
+                ctx.setLineDash([]);
+            }
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        
+        // Dessiner la droite (AB)
+        function drawDroite() {
+            // Étendre la droite
+            const AB = {
+                x: B.x - A.x,
+                y: B.y - A.y,
+                z: B.z - A.z
+            };
+            
+            const extension = 1.5;
+            const start = {
+                x: A.x - extension * AB.x,
+                y: A.y - extension * AB.y,
+                z: A.z - extension * AB.z
+            };
+            
+            const end = {
+                x: B.x + extension * AB.x,
+                y: B.y + extension * AB.y,
+                z: B.z + extension * AB.z
+            };
+            
+            drawLine(start.x, start.y, start.z, end.x, end.y, end.z, '#3498db', 3);
+            
+            // Dessiner les points A et B
+            drawPoint(A.x, A.y, A.z, '#2980b9', 'A', 5);
+            drawPoint(B.x, B.y, B.z, '#2980b9', 'B', 5);
+        }
+        
+        // Dessiner le plan perpendiculaire à (AB) passant par M
+        function drawPerpendicularPlane(H) {
+            // Vecteur directeur de la droite
+            const AB = {
+                x: B.x - A.x,
+                y: B.y - A.y,
+                z: B.z - A.z
+            };
+            
+            // Normaliser AB
+            const len = Math.sqrt(AB.x * AB.x + AB.y * AB.y + AB.z * AB.z);
+            AB.x /= len; AB.y /= len; AB.z /= len;
+            
+            // Trouver deux vecteurs perpendiculaires à AB
+            let u, v;
+            if (Math.abs(AB.x) < 0.9) {
+                u = {x: 1, y: 0, z: 0};
+            } else {
+                u = {x: 0, y: 1, z: 0};
+            }
+            
+            // v = AB × u
+            v = {
+                x: AB.y * u.z - AB.z * u.y,
+                y: AB.z * u.x - AB.x * u.z,
+                z: AB.x * u.y - AB.y * u.x
+            };
+            
+            // u = v × AB pour avoir u perpendiculaire à AB et v
+            u = {
+                x: v.y * AB.z - v.z * AB.y,
+                y: v.z * AB.x - v.x * AB.z,
+                z: v.x * AB.y - v.y * AB.x
+            };
+            
+            // Normaliser u et v
+            let lenU = Math.sqrt(u.x * u.x + u.y * u.y + u.z * u.z);
+            u.x /= lenU; u.y /= lenU; u.z /= lenU;
+            
+            let lenV = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+            v.x /= lenV; v.y /= lenV; v.z /= lenV;
+            
+            // Taille du plan
+            const size = 2.8;
+            
+            // Les 4 coins du plan centré sur H
+            const corners = [
+                {
+                    x: H.x - size * u.x - size * v.x,
+                    y: H.y - size * u.y - size * v.y,
+                    z: H.z - size * u.z - size * v.z
+                },
+                {
+                    x: H.x + size * u.x - size * v.x,
+                    y: H.y + size * u.y - size * v.y,
+                    z: H.z + size * u.z - size * v.z
+                },
+                {
+                    x: H.x + size * u.x + size * v.x,
+                    y: H.y + size * u.y + size * v.y,
+                    z: H.z + size * u.z + size * v.z
+                },
+                {
+                    x: H.x - size * u.x + size * v.x,
+                    y: H.y - size * u.y + size * v.y,
+                    z: H.z - size * u.z + size * v.z
+                }
+            ];
+            
+            // Projeter les coins
+            const projectedCorners = corners.map(c => project(c.x, c.y, c.z));
+            
+            // Dessiner le plan
+            ctx.beginPath();
+            ctx.moveTo(projectedCorners[0].x, projectedCorners[0].y);
+            for (let i = 1; i < projectedCorners.length; i++) {
+                ctx.lineTo(projectedCorners[i].x, projectedCorners[i].y);
+            }
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(149, 165, 166, 0.3)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(149, 165, 166, 0.6)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+        
+        // Dessiner l'angle droit
+        function drawRightAngle(H, M, size = 0.25) {
+            // Vecteur AB (direction de la droite)
+            const AB = {
+                x: B.x - A.x,
+                y: B.y - A.y,
+                z: B.z - A.z
+            };
+            
+            // Vecteur HM
+            const HM = {x: M.x - H.x, y: M.y - H.y, z: M.z - H.z};
+            
+            // Normaliser
+            const lenAB = Math.sqrt(AB.x*AB.x + AB.y*AB.y + AB.z*AB.z);
+            const lenHM = Math.sqrt(HM.x*HM.x + HM.y*HM.y + HM.z*HM.z);
+            
+            AB.x /= lenAB; AB.y /= lenAB; AB.z /= lenAB;
+            HM.x /= lenHM; HM.y /= lenHM; HM.z /= lenHM;
+            
+            // Points du carré d'angle droit
+            const p1 = {x: H.x + AB.x*size, y: H.y + AB.y*size, z: H.z + AB.z*size};
+            const p2 = {x: p1.x + HM.x*size, y: p1.y + HM.y*size, z: p1.z + HM.z*size};
+            const p3 = {x: H.x + HM.x*size, y: H.y + HM.y*size, z: H.z + HM.z*size};
+            
+            drawLine(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, '#333', 1.5);
+            drawLine(p3.x, p3.y, p3.z, p2.x, p2.y, p2.z, '#333', 1.5);
+        }
+        
+        // Fonction principale de dessin
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const H = calculateProjection();
+            
+            // Dessiner le plan perpendiculaire (en arrière-plan)
+            drawPerpendicularPlane(H);
+            
+            // Dessiner la droite
+            drawDroite();
+            
+            // Dessiner le segment MH
+            drawLine(M.x, M.y, M.z, H.x, H.y, H.z, '#f39c12', 3);
+            
+            // Dessiner l'angle droit
+            drawRightAngle(H, M);
+            
+            // Dessiner les points
+            drawPoint(H.x, H.y, H.z, '#27ae60', 'H');
+            drawPoint(M.x, M.y, M.z, '#e74c3c', 'M');
+            
+            // Afficher la distance MH
+            const distance = Math.sqrt(
+                (M.x - H.x) ** 2 + 
+                (M.y - H.y) ** 2 + 
+                (M.z - H.z) ** 2
+            ).toFixed(2);
+            
+            const midPoint = project((M.x + H.x)/2, (M.y + H.y)/2, (M.z + H.z)/2);
+            ctx.fillStyle = '#f39c12';
+            ctx.font = 'bold 14px Arial';
+            ctx.fillText(`MH = ${distance}`, midPoint.x + 10, midPoint.y);
+        }
+        
+        // Contrôles
+        const mxSlider = document.getElementById('mx');
+        const mySlider = document.getElementById('my');
+        const mzSlider = document.getElementById('mz');
+        
+        function updateSliders() {
+            mxSlider.value = M.x;
+            mySlider.value = M.y;
+            mzSlider.value = M.z;
+            document.getElementById('mx-value').textContent = M.x.toFixed(1);
+            document.getElementById('my-value').textContent = M.y.toFixed(1);
+            document.getElementById('mz-value').textContent = M.z.toFixed(1);
+        }
+        
+        mxSlider.addEventListener('input', (e) => {
+            M.x = parseFloat(e.target.value);
+            updateSliders();
+            draw();
+        });
+        
+        mySlider.addEventListener('input', (e) => {
+            M.y = parseFloat(e.target.value);
+            updateSliders();
+            draw();
+        });
+        
+        mzSlider.addEventListener('input', (e) => {
+            M.z = parseFloat(e.target.value);
+            updateSliders();
+            draw();
+        });
+        
+        // Vérifier si la souris est proche du point M
+        function isNearPoint(mouseX, mouseY, pointX, pointY, pointZ, threshold = 20) {
+            const p = project(pointX, pointY, pointZ);
+            const distance = Math.sqrt((mouseX - p.x) ** 2 + (mouseY - p.y) ** 2);
+            return distance < threshold;
+        }
+        
+        // Gestion de la souris
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            if (isNearPoint(mouseX, mouseY, M.x, M.y, M.z)) {
+                isMovingPoint = true;
+                canvas.classList.add('moving-point');
+            } else {
+                isDragging = true;
+            }
+            
+            lastX = e.clientX;
+            lastY = e.clientY;
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            if (!isDragging && !isMovingPoint) {
+                if (isNearPoint(mouseX, mouseY, M.x, M.y, M.z)) {
+                    canvas.style.cursor = 'move';
+                } else {
+                    canvas.style.cursor = 'grab';
+                }
+            }
+            
+            if (isMovingPoint) {
+                const deltaX = (e.clientX - lastX) / 80;
+                const deltaY = -(e.clientY - lastY) / 80;
+                
+                const cosY = Math.cos(angleY);
+                const sinY = Math.sin(angleY);
+                const cosX = Math.cos(angleX);
+                
+                M.x += deltaX * cosY;
+                M.z += deltaX * sinY;
+                M.y += deltaY * cosX;
+                
+                M.x = Math.max(-3, Math.min(3, M.x));
+                M.y = Math.max(-3, Math.min(3, M.y));
+                M.z = Math.max(-3, Math.min(3, M.z));
+                
+                updateSliders();
+                lastX = e.clientX;
+                lastY = e.clientY;
+                draw();
+            } else if (isDragging) {
+                const deltaX = e.clientX - lastX;
+                const deltaY = e.clientY - lastY;
+                
+                angleY += deltaX * 0.01;
+                angleX += deltaY * 0.01;
+                
+                angleX = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, angleX));
+                
+                lastX = e.clientX;
+                lastY = e.clientY;
+                
+                draw();
+            }
+        });
+        
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+            isMovingPoint = false;
+            canvas.classList.remove('moving-point');
+            canvas.style.cursor = 'grab';
+        });
+        
+        canvas.addEventListener('mouseleave', () => {
+            isDragging = false;
+            isMovingPoint = false;
+            canvas.classList.remove('moving-point');
+            canvas.style.cursor = 'grab';
+        });
+        
+        // Dessiner au chargement
+        draw();
+    </script>
+</body>
+</html>
