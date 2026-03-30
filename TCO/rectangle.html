@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Methode des rectangles</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+	<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+	<style>
+		:root {
+			--bg-1: #f3efe4;
+			--bg-2: #d8ebd9;
+			--ink: #1a2a2f;
+			--panel: rgba(255, 255, 255, 0.76);
+			--accent: #db6a3c;
+			--accent-2: #006d77;
+			--grid: rgba(26, 42, 47, 0.12);
+			--curve: #1f4f5a;
+			--rect-fill: rgba(219, 106, 60, 0.45);
+			--rect-stroke: rgba(219, 106, 60, 0.86);
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			margin: 0;
+			min-height: 100vh;
+			font-family: "Space Grotesk", sans-serif;
+			color: var(--ink);
+			background:
+				radial-gradient(circle at 8% 14%, rgba(219, 106, 60, 0.15), transparent 34%),
+				radial-gradient(circle at 90% 84%, rgba(0, 109, 119, 0.22), transparent 30%),
+				linear-gradient(130deg, var(--bg-1), var(--bg-2));
+			display: grid;
+			place-items: center;
+			padding: 1.2rem;
+		}
+
+		.app {
+			width: min(980px, 100%);
+			backdrop-filter: blur(7px);
+			background: var(--panel);
+			border: 1px solid rgba(26, 42, 47, 0.1);
+			border-radius: 20px;
+			box-shadow: 0 14px 36px rgba(0, 0, 0, 0.12);
+			padding: clamp(1rem, 3vw, 2rem);
+			animation: appear 620ms ease-out;
+		}
+
+		h1 {
+			margin: 0 0 0.5rem;
+			font-family: "Fraunces", serif;
+			font-size: clamp(1.5rem, 3vw, 2.2rem);
+			line-height: 1.08;
+			letter-spacing: 0.02em;
+			color: #13272d;
+		}
+
+		.subtitle {
+			margin: 0 0 1.2rem;
+			font-size: 0.98rem;
+			opacity: 0.9;
+		}
+
+		.controls {
+			display: grid;
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			gap: 0.8rem;
+			margin-bottom: 1rem;
+		}
+
+		.control {
+			background: rgba(255, 255, 255, 0.8);
+			border: 1px solid rgba(26, 42, 47, 0.12);
+			border-radius: 14px;
+			padding: 0.7rem 0.85rem;
+			display: grid;
+			gap: 0.4rem;
+		}
+
+		.control label,
+		.control .label {
+			font-size: 0.84rem;
+			text-transform: uppercase;
+			letter-spacing: 0.06em;
+			opacity: 0.82;
+		}
+
+		.checkbox-line {
+			display: flex;
+			align-items: center;
+			gap: 0.45rem;
+			font-weight: 500;
+		}
+
+		input[type="range"] {
+			width: 100%;
+			accent-color: var(--accent);
+		}
+
+		.value {
+			font-weight: 700;
+			font-size: 1.05rem;
+			color: var(--accent-2);
+		}
+
+		.formula {
+			font-family: "Fraunces", serif;
+			font-size: 1.02rem;
+			line-height: 1.25;
+		}
+
+		.canvas-wrap {
+			border-radius: 14px;
+			overflow: hidden;
+			border: 1px solid rgba(26, 42, 47, 0.12);
+			background: linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.68));
+			position: relative;
+		}
+
+		canvas {
+			width: 100%;
+			height: auto;
+			display: block;
+		}
+
+		.legend {
+			display: flex;
+			gap: 1rem;
+			flex-wrap: wrap;
+			margin-top: 0.65rem;
+			font-size: 0.9rem;
+		}
+
+		.legend-item {
+			display: flex;
+			align-items: center;
+			gap: 0.45rem;
+		}
+
+		.dot {
+			width: 14px;
+			height: 14px;
+			border-radius: 4px;
+			border: 1px solid rgba(26, 42, 47, 0.3);
+		}
+
+		.dot.curve {
+			background: var(--curve);
+			border-radius: 50%;
+		}
+
+		.dot.rects {
+			background: var(--rect-fill);
+		}
+
+		.dot.step {
+			background: rgba(0, 109, 119, 0.26);
+		}
+
+		@keyframes appear {
+			from {
+				opacity: 0;
+				transform: translateY(10px) scale(0.99);
+			}
+			to {
+				opacity: 1;
+				transform: translateY(0) scale(1);
+			}
+		}
+
+		@media (max-width: 760px) {
+			.controls {
+				grid-template-columns: 1fr;
+			}
+		}
+	</style>
+</head>
+<body>
+	<main class="app">
+		<h1>Methode des rectangles</h1>
+		<p class="subtitle">Estimation de l'aire sous la courbe de f(x) sur [a, b] avec animation.</p>
+
+		<section class="controls" aria-label="Reglages">
+			<div class="control">
+				<label for="nSlider">Nombre de rectangles n</label>
+				<input id="nSlider" type="range" min="2" max="80" step="1" value="2" />
+				<div class="value">n = <span id="nValue">2</span></div>
+			</div>
+
+			<div class="control">
+				<span class="label">Choix des rectangles</span>
+				<label class="checkbox-line" for="leftMode">
+					<input id="leftMode" type="checkbox" />
+					Rectangles a gauche
+				</label>
+				<label class="checkbox-line" for="rightMode">
+					<input id="rightMode" type="checkbox" />
+					Rectangles a droite
+				</label>
+				<div id="modeText">Mode actuel : aucun rectangle affiche</div>
+			</div>
+
+			<div class="control">
+				<span class="label">Largeur h</span>
+				<div class="formula" id="hFormula">h = (b - a) / n = (6 - 0) / 2 = 3.0000</div>
+			</div>
+		</section>
+
+		<div class="canvas-wrap">
+			<canvas id="scene" width="1200" height="620" aria-label="Courbe et rectangles" role="img"></canvas>
+		</div>
+
+		<div class="legend">
+			<div class="legend-item"><span class="dot curve"></span>Courbe f(x)</div>
+			<div class="legend-item"><span class="dot rects"></span>Rectangles</div>
+			<div class="legend-item"><span class="dot step"></span>Un pas h sur l'axe des x</div>
+		</div>
+	</main>
+
+	<script>
+		const canvas = document.getElementById("scene");
+		const ctx = canvas.getContext("2d");
+
+		const nSlider = document.getElementById("nSlider");
+		const nValue = document.getElementById("nValue");
+		const leftMode = document.getElementById("leftMode");
+		const rightMode = document.getElementById("rightMode");
+		const modeText = document.getElementById("modeText");
+		const hFormula = document.getElementById("hFormula");
+
+		const bounds = { left: 86, right: 60, top: 44, bottom: 78 };
+		const a = 0;
+		const b = 6;
+		const yMin = 0;
+		const yMax = 8;
+
+		function f(x) {
+			return 0.15 * x * x + 0.35 * x + 1.2;
+		}
+
+		function xToPx(x) {
+			const w = canvas.width - bounds.left - bounds.right;
+			return bounds.left + ((x - a) / (b - a)) * w;
+		}
+
+		function yToPx(y) {
+			const h = canvas.height - bounds.top - bounds.bottom;
+			return canvas.height - bounds.bottom - ((y - yMin) / (yMax - yMin)) * h;
+		}
+
+		function drawAxes() {
+			ctx.save();
+			ctx.strokeStyle = "rgba(26, 42, 47, 0.28)";
+			ctx.lineWidth = 1;
+
+			for (let i = 0; i <= 6; i += 1) {
+				const x = xToPx(i);
+				ctx.beginPath();
+				ctx.moveTo(x, yToPx(0));
+				ctx.lineTo(x, yToPx(yMax));
+				ctx.stroke();
+			}
+
+			for (let y = 0; y <= 8; y += 1) {
+				const py = yToPx(y);
+				ctx.beginPath();
+				ctx.moveTo(xToPx(a), py);
+				ctx.lineTo(xToPx(b), py);
+				ctx.stroke();
+			}
+
+			ctx.strokeStyle = "#1a2a2f";
+			ctx.lineWidth = 2;
+
+			ctx.beginPath();
+			ctx.moveTo(xToPx(a), yToPx(0));
+			ctx.lineTo(xToPx(b), yToPx(0));
+			ctx.stroke();
+
+			ctx.beginPath();
+			ctx.moveTo(xToPx(a), yToPx(0));
+			ctx.lineTo(xToPx(a), yToPx(yMax));
+			ctx.stroke();
+
+			ctx.fillStyle = "#1a2a2f";
+			ctx.font = "600 22px 'Space Grotesk', sans-serif";
+			ctx.fillText("x", xToPx(b) + 16, yToPx(0) + 8);
+			ctx.fillText("y", xToPx(a) - 12, yToPx(yMax) - 16);
+			ctx.restore();
+		}
+
+		function drawCurve() {
+			ctx.save();
+			ctx.strokeStyle = "#1f4f5a";
+			ctx.lineWidth = 3;
+			ctx.beginPath();
+
+			const step = (b - a) / 350;
+			for (let x = a; x <= b + step; x += step) {
+				const px = xToPx(x);
+				const py = yToPx(f(x));
+				if (x === a) {
+					ctx.moveTo(px, py);
+				} else {
+					ctx.lineTo(px, py);
+				}
+			}
+			ctx.stroke();
+			ctx.restore();
+		}
+
+		function drawRectangles(n, isRight, progress) {
+			const h = (b - a) / n;
+
+			ctx.save();
+			ctx.fillStyle = "rgba(219, 106, 60, 0.45)";
+			ctx.strokeStyle = "rgba(219, 106, 60, 0.92)";
+			ctx.lineWidth = 1.3;
+
+			for (let i = 0; i < n; i += 1) {
+				const xLeft = a + i * h;
+				const sampleX = isRight ? xLeft + h : xLeft;
+				const rectHeight = f(sampleX);
+
+				const reveal = Math.max(0, Math.min(1, progress * n - i));
+				const animatedHeight = rectHeight * reveal;
+
+				const px = xToPx(xLeft);
+				const px2 = xToPx(xLeft + h);
+				const py = yToPx(animatedHeight);
+				const baseY = yToPx(0);
+
+				ctx.beginPath();
+				ctx.rect(px, py, px2 - px, baseY - py);
+				ctx.fill();
+				ctx.stroke();
+
+				if (i === 0) {
+					ctx.save();
+					ctx.strokeStyle = "rgba(0, 109, 119, 0.85)";
+					ctx.lineWidth = 3;
+					ctx.beginPath();
+					ctx.moveTo(px, yToPx(-0.12));
+					ctx.lineTo(px2, yToPx(-0.12));
+					ctx.stroke();
+					ctx.restore();
+				}
+			}
+			ctx.restore();
+		}
+
+		function drawLabels(n) {
+			ctx.save();
+			ctx.fillStyle = "#163238";
+			ctx.font = "600 21px 'Space Grotesk', sans-serif";
+			ctx.fillText(`a = ${a}`, xToPx(a) - 12, yToPx(0) + 34);
+			ctx.fillText(`b = ${b}`, xToPx(b) - 18, yToPx(0) + 34);
+
+			const h = (b - a) / n;
+			ctx.fillStyle = "#006d77";
+			ctx.font = "700 20px 'Space Grotesk', sans-serif";
+			ctx.fillText(`h = ${(h).toFixed(4)}`, xToPx(a) + 10, yToPx(0) - 16);
+			ctx.restore();
+		}
+
+		let animToken = 0;
+
+		function render(animated = true) {
+			const n = Number(nSlider.value);
+			const hasLeft = leftMode.checked;
+			const hasRight = rightMode.checked;
+			const h = (b - a) / n;
+
+			nValue.textContent = String(n);
+			if (hasLeft) {
+				modeText.textContent = "Mode actuel : rectangles a gauche";
+			} else if (hasRight) {
+				modeText.textContent = "Mode actuel : rectangles a droite";
+			} else {
+				modeText.textContent = "Mode actuel : aucun rectangle affiche";
+			}
+			hFormula.textContent = `h = (b - a) / n = (${b} - ${a}) / ${n} = ${h.toFixed(4)}`;
+
+			const localToken = ++animToken;
+			const duration = animated ? 800 : 0;
+			const start = performance.now();
+
+			function frame(now) {
+				if (localToken !== animToken) {
+					return;
+				}
+
+				const t = duration === 0 ? 1 : Math.min(1, (now - start) / duration);
+				const eased = 1 - Math.pow(1 - t, 3);
+
+				ctx.clearRect(0, 0, canvas.width, canvas.height);
+				drawAxes();
+				if (hasLeft || hasRight) {
+					drawRectangles(n, hasRight, eased);
+				}
+				drawCurve();
+				drawLabels(n);
+
+				if (t < 1) {
+					requestAnimationFrame(frame);
+				}
+			}
+
+			requestAnimationFrame(frame);
+		}
+
+		function onLeftModeChange() {
+			if (leftMode.checked) {
+				rightMode.checked = false;
+			}
+			render(true);
+		}
+
+		function onRightModeChange() {
+			if (rightMode.checked) {
+				leftMode.checked = false;
+			}
+			render(true);
+		}
+
+		nSlider.addEventListener("input", () => render(true));
+		leftMode.addEventListener("change", onLeftModeChange);
+		rightMode.addEventListener("change", onRightModeChange);
+
+		render(false);
+	</script>
+</body>
+</html>
+
