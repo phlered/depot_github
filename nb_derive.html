@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nombre dérivé — illustration interactive</title>
+<!-- Plotly.js -->
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<!-- MathJax (small, pour affichage des formules) -->
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" id="MathJax-script" async></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #f5f7fa;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    min-height: 100vh;
+  }
+  h1 {
+    font-size: 1.3rem;
+    color: #1e3c72;
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+  .subtitle {
+    color: #555;
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+  }
+  #formula {
+    background: white;
+    border-radius: 10px;
+    padding: 12px 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  #formula .math { font-size: 1.2rem; }
+  #graph-container {
+    width: 100%;
+    max-width: 900px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    padding: 10px;
+  }
+  #graph {
+    width: 100%;
+    height: 500px;
+  }
+  .controls {
+    width: 100%;
+    max-width: 900px;
+    margin-top: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    padding: 18px 24px;
+  }
+  .control-group {
+    flex: 1 1 200px;
+    min-width: 160px;
+  }
+  .control-group label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #1e3c72;
+    margin-bottom: 4px;
+  }
+  .control-group .value {
+    font-size: 0.85rem;
+    color: #888;
+    margin-left: 6px;
+  }
+  .control-group input[type="range"] {
+    width: 100%;
+    accent-color: #1e3c72;
+  }
+  .controls-row2 {
+    width: 100%;
+    max-width: 900px;
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+    justify-content: center;
+  }
+  button {
+    background: #1e3c72;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 24px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  button:hover { background: #2a5298; }
+  button:active { transform: scale(0.97); }
+  button.secondary {
+    background: #e0e4e8;
+    color: #333;
+  }
+  button.secondary:hover { background: #d0d4d8; }
+  .stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: center;
+    align-items: center;
+    font-size: 0.9rem;
+  }
+  .stat-item {
+    background: #f0f4f8;
+    border-radius: 8px;
+    padding: 6px 14px;
+    white-space: nowrap;
+  }
+  .stat-item .label { color: #666; }
+  .stat-item .number {
+    font-weight: 700;
+    color: #1e3c72;
+    font-family: 'Courier New', monospace;
+  }
+  .stat-item .number.limit {
+    color: #c0392b;
+  }
+  .note {
+    font-size: 0.8rem;
+    color: #999;
+    margin-top: 12px;
+    max-width: 900px;
+    text-align: center;
+  }
+  @media (max-width: 600px) {
+    #graph { height: 360px; }
+    .control-group { flex: 1 1 100%; }
+  }
+</style>
+</head>
+<body>
+
+<h1>📈 Illustration du nombre dérivé</h1>
+<p class="subtitle">Faire tendre \(h\) vers \(0\) pour que la sécante devienne la tangente</p>
+
+<div id="formula">
+  <span class="math">\(\displaystyle f'(x_0) = \lim_{h \to 0} \frac{f(x_0+h) - f(x_0)}{h}\)</span>
+</div>
+
+<div id="graph-container">
+  <div id="graph"></div>
+</div>
+
+<div class="controls">
+  <div class="control-group">
+    <label>Position \(x_0\) <span class="value" id="x0-label">1.0</span></label>
+    <input type="range" id="x0-slider" min="-3" max="4" step="0.05" value="1">
+  </div>
+  <div class="control-group">
+    <label>\(h\) <span class="value" id="h-label">1.50</span></label>
+    <input type="range" id="h-slider" min="-2" max="2" step="0.02" value="1.5">
+  </div>
+  <div class="control-group">
+    <label>Fonction</label>
+    <select id="func-select" style="width:100%;padding:6px;border-radius:6px;border:1px solid #ccc;font-size:0.9rem;">
+      <option value="x2">\(f(x)=x^2\)</option>
+      <option value="x3">\(f(x)=x^3\)</option>
+      <option value="sqrt">\(f(x)=\sqrt{x+2}\)</option>
+      <option value="exp" selected>\(f(x)=e^x\)</option>
+      <option value="sin">\(f(x)=\sin(x)\)</option>
+    </select>
+  </div>
+</div>
+
+<div class="controls-row2">
+  <div class="stats">
+    <span class="stat-item">
+      <span class="label">Taux d'accroissement : </span>
+      <span class="number" id="taux">—</span>
+    </span>
+    <span class="stat-item">
+      <span class="label">\(f'(x_0)\) exact : </span>
+      <span class="number limit" id="derivee-exacte">—</span>
+    </span>
+  </div>
+  <button id="animate-btn">▶ Animer \(h \to 0\)</button>
+  <button id="reset-btn" class="secondary">↺ Remettre \(h\)</button>
+</div>
+
+<p class="note">
+  Déplacer \(x_0\) pour choisir le point, ajuster \(h\) pour voir la sécante se rapprocher de la tangente.
+</p>
+
+<script>
+(function() {
+  // ---- Configuration ----
+  const graphDiv = document.getElementById('graph');
+  const x0Slider = document.getElementById('x0-slider');
+  const hSlider   = document.getElementById('h-slider');
+  const funcSelect = document.getElementById('func-select');
+  const x0Label   = document.getElementById('x0-label');
+  const hLabel    = document.getElementById('h-label');
+  const tauxSpan  = document.getElementById('taux');
+  const deriveeSpan = document.getElementById('derivee-exacte');
+  const animateBtn = document.getElementById('animate-btn');
+  const resetBtn   = document.getElementById('reset-btn');
+
+  let animating = false;
+  let animationId = null;
+
+  // ---- Fonctions mathématiques et leurs dérivées ----
+  const funcs = {
+    x2: {
+      name: 'x²',
+      f: x => x * x,
+      fp: x => 2 * x,
+      fpTex: "2x"
+    },
+    x3: {
+      name: 'x³',
+      f: x => x * x * x,
+      fp: x => 3 * x * x,
+      fpTex: "3x^2"
+    },
+    sqrt: {
+      name: '√(x+2)',
+      f: x => Math.sqrt(Math.max(x + 2, 0)),
+      fp: x => 0.5 / Math.sqrt(Math.max(x + 2, 0.0001)),
+      fpTex: "\\frac{1}{2\\sqrt{x+2}}"
+    },
+    exp: {
+      name: 'e^x',
+      f: x => Math.exp(x),
+      fp: x => Math.exp(x),
+      fpTex: "e^x"
+    },
+    sin: {
+      name: 'sin(x)',
+      f: x => Math.sin(x),
+      fp: x => Math.cos(x),
+      fpTex: "\\cos(x)"
+    }
+  };
+
+  let currentFunc = funcs.exp;
+
+  // ---- Tracer ----
+  function redraw() {
+    const x0 = parseFloat(x0Slider.value);
+    const h   = parseFloat(hSlider.value);
+
+    x0Label.textContent = x0.toFixed(2);
+    hLabel.textContent   = h.toFixed(2);
+
+    const f = currentFunc.f;
+    const fp = currentFunc.fp;
+
+    // Valeurs
+    const fx0 = f(x0);
+    const fx0h = f(x0 + h);
+    const taux = h !== 0 ? (fx0h - fx0) / h : fp(x0);
+    const deriveeExacte = fp(x0);
+
+    tauxSpan.textContent = taux.toFixed(4);
+    deriveeSpan.textContent = deriveeExacte.toFixed(4);
+
+    // Domaine du graphique
+    let xMin = -3.5, xMax = 4.5;
+    if (currentFunc === funcs.sqrt) { xMin = -2.5; xMax = 4.5; }
+
+    // Points pour la courbe
+    const xCurve = [];
+    const yCurve = [];
+    for (let x = xMin; x <= xMax; x += 0.02) {
+      xCurve.push(x);
+      yCurve.push(f(x));
+    }
+
+    // Sécante : droite passant par (x0, fx0) et (x0+h, fx0h)
+    const secPente = (x0 + h !== x0) ? (fx0h - fx0) / h : fp(x0);
+    // Points de la sécante — on trace sur un intervalle large
+    const secX = [];
+    const secY = [];
+    const range = Math.max(3, Math.abs(h) * 2 + 1);
+    for (let t = -range; t <= range; t += 0.1) {
+      secX.push(x0 + t);
+      secY.push(fx0 + secPente * t);
+    }
+
+    // Tangente : droite de pente fp(x0) passant par (x0, fx0)
+    const tanX = [];
+    const tanY = [];
+    for (let t = -range; t <= range; t += 0.1) {
+      tanX.push(x0 + t);
+      tanY.push(fx0 + deriveeExacte * t);
+    }
+
+    // Marqueur discret pour h
+    const markerH = {
+      x: [x0 + h],
+      y: [fx0h],
+      mode: 'markers',
+      type: 'scatter',
+      name: 'f(x₀+h)',
+      marker: { size: 12, color: '#e74c3c', symbol: 'circle-open', line: { width: 2 } },
+      showlegend: false
+    };
+
+    // Segment entre les deux points (ligne horizontale/verticale décorative)
+    const hLine = {
+      x: [x0, x0 + h],
+      y: [fx0, fx0],
+      mode: 'lines',
+      type: 'scatter',
+      name: 'h',
+      line: { color: '#e74c3c', width: 1.5, dash: 'dot' },
+      showlegend: false
+    };
+    const vLine = {
+      x: [x0 + h, x0 + h],
+      y: [fx0, fx0h],
+      mode: 'lines',
+      type: 'scatter',
+      name: 'f(x₀+h)−f(x₀)',
+      line: { color: '#27ae60', width: 1.5, dash: 'dot' },
+      showlegend: false
+    };
+
+    // Segment horizontal de h si h visible
+    const decoration = (Math.abs(h) < 0.01) ? [] : [hLine, vLine];
+
+    // Annotation personnalisée du point A
+    const annotationX0 = {
+      x: x0, y: fx0,
+      xref: 'x', yref: 'y',
+      text: 'A',
+      showarrow: true,
+      arrowhead: 2,
+      ax: 30, ay: -30,
+      font: { size: 14, color: '#1e3c72' }
+    };
+
+    const layout = {
+      title: {
+        text: `<b>f(x) = ${currentFunc.name}</b>  &nbsp;&nbsp;  x₀ = ${x0.toFixed(2)},  h = ${h.toFixed(2)}`,
+        font: { size: 14 }
+      },
+      xaxis: {
+        title: 'x',
+        range: [xMin, xMax],
+        zeroline: true,
+        zerolinecolor: '#ccc',
+        gridcolor: '#eee',
+        dtick: 1
+      },
+      yaxis: {
+        title: 'y',
+        range: [Math.min(-1, Math.min(...yCurve) - 1), Math.max(5, Math.max(...yCurve) + 1)],
+        zeroline: true,
+        zerolinecolor: '#ccc',
+        gridcolor: '#eee'
+      },
+      hovermode: 'closest',
+      showlegend: true,
+      legend: { orientation: 'h', y: -0.2, x: 0.3 },
+      annotations: [annotationX0],
+      margin: { l: 50, r: 30, t: 50, b: 30 }
+    };
+
+    const data = [
+      // Courbe
+      {
+        x: xCurve, y: yCurve,
+        mode: 'lines',
+        type: 'scatter',
+        name: 'f(x)',
+        line: { color: '#1e3c72', width: 2.5 }
+      },
+      // Sécante
+      {
+        x: secX, y: secY,
+        mode: 'lines',
+        type: 'scatter',
+        name: `Sécante (pente = ${secPente.toFixed(3)})`,
+        line: { color: '#e67e22', width: 2, dash: 'dash' }
+      },
+      // Tangente
+      {
+        x: tanX, y: tanY,
+        mode: 'lines',
+        type: 'scatter',
+        name: `Tangente (pente = ${deriveeExacte.toFixed(3)})`,
+        line: { color: '#2ecc71', width: 2 }
+      },
+      // Point A (x0, f(x0))
+      {
+        x: [x0], y: [fx0],
+        mode: 'markers',
+        type: 'scatter',
+        name: 'A',
+        marker: { size: 12, color: '#1e3c72', symbol: 'circle' },
+        showlegend: false
+      },
+      // Point B (x0+h, f(x0+h))
+      markerH,
+      ...decoration
+    ];
+
+    Plotly.newPlot(graphDiv, data, layout, {
+      responsive: true,
+      displayModeBar: false,
+      scrollZoom: false
+    });
+  }
+
+  // ---- Événements ----
+  x0Slider.addEventListener('input', redraw);
+  hSlider.addEventListener('input', redraw);
+  funcSelect.addEventListener('change', function() {
+    currentFunc = funcs[this.value];
+    // Ajuster x0 pour sqrt
+    if (currentFunc === funcs.sqrt) {
+      x0Slider.min = -2;
+    } else {
+      x0Slider.min = -3;
+    }
+    redraw();
+  });
+
+  // ---- Animation ----
+  animateBtn.addEventListener('click', function() {
+    if (animating) {
+      animating = false;
+      if (animationId) clearInterval(animationId);
+      animateBtn.textContent = '▶ Animer h → 0';
+      animateBtn.classList.remove('secondary');
+      return;
+    }
+
+    const startH = parseFloat(hSlider.value);
+    if (Math.abs(startH) < 0.01) {
+      // Déjà proche de 0, partir d'une valeur plus grande
+      hSlider.value = '1.5';
+      redraw();
+      // Rappel dans 100ms
+      setTimeout(() => {
+        hSlider.value = '1.5';
+        animateBtn.click();
+      }, 100);
+      return;
+    }
+
+    animating = true;
+    animateBtn.textContent = '⏸ Stop';
+    animateBtn.classList.add('secondary');
+
+    const steps = 60;
+    const stepDuration = 50; // ms
+    let step = 0;
+
+    // Fonction de progression : on réduit h exponentiellement
+    function animateStep() {
+      if (!animating) return;
+      const progress = step / steps;
+      const newH = startH * Math.pow(0.01, progress);
+      hSlider.value = String(newH);
+      redraw();
+      step++;
+      if (step <= steps && animating) {
+        animationId = setTimeout(animateStep, stepDuration);
+      } else {
+        animating = false;
+        animateBtn.textContent = '▶ Animer h → 0';
+        animateBtn.classList.remove('secondary');
+        animationId = null;
+      }
+    }
+    animationId = setTimeout(animateStep, stepDuration);
+  });
+
+  // ---- Reset ----
+  resetBtn.addEventListener('click', function() {
+    if (animating) {
+      animating = false;
+      if (animationId) clearInterval(animationId);
+      animateBtn.textContent = '▶ Animer h → 0';
+      animateBtn.classList.remove('secondary');
+    }
+    hSlider.value = '1.5';
+    redraw();
+  });
+
+  // ---- Initialisation ----
+  // Forcer une première évaluation MathJax
+  if (window.MathJax && MathJax.typesetPromise) {
+    MathJax.typesetPromise();
+  }
+  redraw();
+
+})();
+</script>
+</body>
+</html>
