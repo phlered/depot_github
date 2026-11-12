@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diagrammes de Venn — réunion, intersection, différence</title>
+<style>
+  :root{
+    --a:#12708a;      /* couleur de A */
+    --b:#c2761a;      /* couleur de B */
+    --hl:#ffd166;     /* couleur de la zone mise en évidence */
+    --ink:#12222b;
+    --muted:#5b707c;
+    --line:#d7e2e9;
+    --bg:#f6f9fb;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    background:var(--bg); color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    padding:14px;
+  }
+  .app{max-width:1000px;margin:0 auto}
+  h1{font-size:1.15rem;margin:0 0 2px;letter-spacing:.2px}
+  .hint{margin:0 0 12px;color:var(--muted);font-size:.85rem}
+  h1 .omega{color:var(--muted);font-weight:600}
+
+  .tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  .tabs button{
+    font:inherit;font-size:1rem;font-weight:600;
+    padding:.45em .9em;border-radius:999px;cursor:pointer;
+    border:1.5px solid var(--line);background:#fff;color:var(--ink);
+    transition:background .15s,border-color .15s,color .15s;
+  }
+  .tabs button:hover{border-color:#b9cbd7}
+  .tabs button[aria-pressed="true"]{
+    background:var(--ink);border-color:var(--ink);color:#fff;
+  }
+
+  .stage{
+    background:#fff;border:1px solid var(--line);border-radius:14px;
+    overflow:hidden;box-shadow:0 1px 2px rgba(18,34,43,.05);
+  }
+  svg{display:block;width:100%;height:auto;touch-action:none;user-select:none}
+
+  .circle{fill-opacity:.05;stroke-width:3.5;cursor:grab}
+  .circle:active{cursor:grabbing}
+  #circleA{stroke:var(--a);fill:var(--a)}
+  #circleB{stroke:var(--b);fill:var(--b)}
+  #labelA,#labelB{font:700 30px/1 inherit;pointer-events:none;text-anchor:middle;
+    paint-order:stroke;stroke:#fff;stroke-width:5;stroke-linejoin:round}
+  #labelA{fill:var(--a)}
+  #labelB{fill:var(--b)}
+
+  .hl{fill:var(--hl);fill-opacity:.70;pointer-events:none}
+  .point{fill:#3c4f5a;cursor:grab;transition:fill .12s}
+  .point:active{cursor:grabbing}
+  .point.on{fill:#b45309}
+
+  .panel{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:10px;
+    margin-top:12px;
+  }
+  .card{
+    background:#fff;border:1px solid var(--line);border-radius:12px;
+    padding:10px 12px;
+  }
+  .card .k{font-size:.78rem;color:var(--muted);letter-spacing:.3px}
+  .card .v{font-size:1.7rem;font-weight:700;line-height:1.15}
+  .card.a .v{color:var(--a)} .card.b .v{color:var(--b)}
+  .card.i .v{color:#a16207} .card.u .v{color:var(--ink)}
+
+  .formula{
+    margin-top:10px;background:#fff;border:1px solid var(--line);border-radius:12px;
+    padding:10px 12px;font-size:1rem;color:var(--muted);
+  }
+  .formula b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .formula .ok{color:#0f766e}
+
+  .desc{margin:10px 2px 0;font-size:.95rem;color:var(--muted);min-height:1.4em}
+  .desc b{color:var(--ink)}
+
+  .presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .presets button{
+    font:inherit;font-size:.9rem;padding:.4em .8em;border-radius:10px;cursor:pointer;
+    border:1.5px solid var(--line);background:#fff;color:var(--muted);
+  }
+  .presets button:hover{color:var(--ink);border-color:#b9cbd7}
+
+  @media (max-width:640px){
+    body{padding:10px}
+    .panel{grid-template-columns:repeat(2,1fr)}
+    .card .v{font-size:1.45rem}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>Diagrammes de Venn <span class="omega">dans l'univers Ω</span></h1>
+  <p class="hint">Déplace les cercles (A et B) ou les éléments (les points) : les cardinaux se recalculent en direct.</p>
+
+  <div class="tabs" role="group" aria-label="Zone à mettre en évidence">
+    <button type="button" data-mode="union"  aria-pressed="true">A ∪ B</button>
+    <button type="button" data-mode="inter"  aria-pressed="false">A ∩ B</button>
+    <button type="button" data-mode="diffAB" aria-pressed="false">A \ B</button>
+    <button type="button" data-mode="diffBA" aria-pressed="false">B \ A</button>
+    <button type="button" data-mode="compA"  aria-pressed="false">Ā</button>
+  </div>
+
+  <div class="stage">
+    <svg id="board" viewBox="0 0 900 620" role="img" aria-label="Deux ensembles A et B dans un univers">
+      <defs>
+        <clipPath id="clipB">
+          <circle id="clipBc" cx="550" cy="310" r="175"/>
+        </clipPath>
+        <mask id="maskNotA" maskUnits="userSpaceOnUse" x="0" y="0" width="900" height="620">
+          <rect x="0" y="0" width="900" height="620" fill="#fff"/>
+          <circle id="maskNotAc" cx="350" cy="310" r="175" fill="#000"/>
+        </mask>
+        <mask id="maskNotB" maskUnits="userSpaceOnUse" x="0" y="0" width="900" height="620">
+          <rect x="0" y="0" width="900" height="620" fill="#fff"/>
+          <circle id="maskNotBc" cx="550" cy="310" r="175" fill="#000"/>
+        </mask>
+      </defs>
+
+      <rect x="8" y="8" width="884" height="604" rx="14" fill="#fdfefe" stroke="#d7e2e9"/>
+
+      <!-- zones mises en évidence (sous les cercles) -->
+      <g id="hlLayer">
+        <circle id="rA"    class="hl" cx="350" cy="310" r="175"/>
+        <circle id="rB"    class="hl" cx="550" cy="310" r="175"/>
+        <g id="rUnion">
+          <circle id="rU1" class="hl" cx="350" cy="310" r="175"/>
+          <circle id="rU2" class="hl" cx="550" cy="310" r="175"/>
+        </g>
+        <circle id="rInter"  class="hl" cx="350" cy="310" r="175" clip-path="url(#clipB)"/>
+        <circle id="rDiffAB" class="hl" cx="350" cy="310" r="175" mask="url(#maskNotB)"/>
+        <circle id="rDiffBA" class="hl" cx="550" cy="310" r="175" mask="url(#maskNotA)"/>
+        <rect   id="rComp"   class="hl" x="8" y="8" width="884" height="604" rx="14" mask="url(#maskNotA)"/>
+      </g>
+
+      <!-- ensembles -->
+      <circle id="circleA" class="circle" data-circle="A" cx="350" cy="310" r="175"/>
+      <circle id="circleB" class="circle" data-circle="B" cx="550" cy="310" r="175"/>
+      <text id="labelA" x="240" y="180">A</text>
+      <text id="labelB" x="640" y="180">B</text>
+
+      <g id="points"></g>
+      <text x="876" y="42" text-anchor="end" font-size="22" fill="#7d939f" font-style="italic">Ω</text>
+    </svg>
+  </div>
+
+  <p class="desc" id="desc"></p>
+
+  <div class="panel">
+    <div class="card a"><div class="k">Card(A)</div><div class="v" id="cA">0</div></div>
+    <div class="card b"><div class="k">Card(B)</div><div class="v" id="cB">0</div></div>
+    <div class="card i"><div class="k">Card(A ∩ B)</div><div class="v" id="cI">0</div></div>
+    <div class="card u"><div class="k">Card(A ∪ B)</div><div class="v" id="cU">0</div></div>
+  </div>
+
+  <div class="formula" id="formula"></div>
+
+  <div class="presets">
+    <button type="button" data-preset="secants">Sécants</button>
+    <button type="button" data-preset="disjoints">Disjoints</button>
+    <button type="button" data-preset="inclus">A inclus dans B</button>
+    <button type="button" data-preset="reset">Réinitialiser</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.getElementById("board");
+  const W = 900, H = 620, PAD = 24;
+
+  // --- géométrie des deux ensembles --------------------------------------
+  const A = { x: 350, y: 310, r: 175 };
+  const B = { x: 550, y: 310, r: 175 };
+
+  const el = {
+    circleA: document.getElementById("circleA"),
+    circleB: document.getElementById("circleB"),
+    labelA:  document.getElementById("labelA"),
+    labelB:  document.getElementById("labelB"),
+    clipBc:  document.getElementById("clipBc"),
+    maskNotAc: document.getElementById("maskNotAc"),
+    maskNotBc: document.getElementById("maskNotBc"),
+    rA: document.getElementById("rA"),
+    rB: document.getElementById("rB"),
+    rUnion: document.getElementById("rUnion"),
+    rU1: document.getElementById("rU1"),
+    rU2: document.getElementById("rU2"),
+    rInter: document.getElementById("rInter"),
+    rDiffAB: document.getElementById("rDiffAB"),
+    rDiffBA: document.getElementById("rDiffBA"),
+    rComp: document.getElementById("rComp"),
+    cA: document.getElementById("cA"),
+    cB: document.getElementById("cB"),
+    cI: document.getElementById("cI"),
+    cU: document.getElementById("cU"),
+    formula: document.getElementById("formula"),
+    desc: document.getElementById("desc"),
+    points: document.getElementById("points")
+  };
+
+  // --- éléments (les points) --------------------------------------------
+  // Générateur pseudo-aléatoire déterministe : même disposition à chaque ouverture.
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  const NB_POINTS = 18;
+  const points = [];
+
+  function initialPositions() {
+    const rnd = mulberry32(20261112);
+    const pos = [];
+    const cols = 6, rows = 3;
+    const x0 = 130, x1 = 770, y0 = 130, y1 = 490;
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        pos.push({
+          x: x0 + (x1 - x0) * (i + 0.5) / cols + (rnd() - 0.5) * 44,
+          y: y0 + (y1 - y0) * (j + 0.5) / rows + (rnd() - 0.5) * 44
+        });
+      }
+    }
+    return pos;
+  }
+
+  function buildPoints() {
+    const pos = initialPositions();
+    for (let i = 0; i < NB_POINTS; i++) {
+      const c = document.createElementNS(NS, "circle");
+      c.setAttribute("class", "point");
+      c.setAttribute("r", 10);
+      c.setAttribute("data-point", i);
+      el.points.appendChild(c);
+      points.push({ x: pos[i].x, y: pos[i].y, node: c });
+    }
+  }
+
+  // --- mise en évidence --------------------------------------------------
+  let mode = "union";
+
+  const DESC = {
+    union:  "<b>A ∪ B</b> : les éléments qui appartiennent à A <i>ou</i> à B (ou aux deux).",
+    inter:  "<b>A ∩ B</b> : les éléments qui appartiennent à A <i>et</i> à B à la fois.",
+    diffAB: "<b>A \\ B</b> : les éléments de A qui n'appartiennent pas à B.",
+    diffBA: "<b>B \\ A</b> : les éléments de B qui n'appartiennent pas à A.",
+    compA:  "<b>Ā</b> : les éléments qui n'appartiennent pas à A (dans l'univers Ω)."
+  };
+
+  function inA(p) { const dx = p.x - A.x, dy = p.y - A.y; return dx * dx + dy * dy <= A.r * A.r; }
+  function inB(p) { const dx = p.x - B.x, dy = p.y - B.y; return dx * dx + dy * dy <= B.r * B.r; }
+
+  function highlighted(p) {
+    const a = inA(p), b = inB(p);
+    switch (mode) {
+      case "union":  return a || b;
+      case "inter":  return a && b;
+      case "diffAB": return a && !b;
+      case "diffBA": return b && !a;
+      case "compA":  return !a;
+      default: return false;
+    }
+  }
+
+  function place(node, c) {
+    node.setAttribute("cx", c.x);
+    node.setAttribute("cy", c.y);
+    node.setAttribute("r", c.r);
+  }
+
+  function update() {
+    // cercles et géométries auxiliaires
+    place(el.circleA, A); place(el.circleB, B);
+    place(el.clipBc, B);
+    place(el.maskNotAc, A); place(el.maskNotBc, B);
+    place(el.rA, A); place(el.rB, B);
+    place(el.rU1, A); place(el.rU2, B);
+    place(el.rInter, A); place(el.rDiffAB, A); place(el.rDiffBA, B);
+
+    // étiquettes
+    el.labelA.setAttribute("x", A.x - A.r * 0.52);
+    el.labelA.setAttribute("y", A.y - A.r * 0.52);
+    el.labelB.setAttribute("x", B.x + B.r * 0.52);
+    el.labelB.setAttribute("y", B.y - B.r * 0.52);
+
+    // affichage de la bonne zone
+    el.rA.style.display = mode === "A" ? "" : "none";
+    el.rB.style.display = mode === "B" ? "" : "none";
+    el.rUnion.style.display = mode === "union" ? "" : "none";
+    el.rInter.style.display = mode === "inter" ? "" : "none";
+    el.rDiffAB.style.display = mode === "diffAB" ? "" : "none";
+    el.rDiffBA.style.display = mode === "diffBA" ? "" : "none";
+    el.rComp.style.display = mode === "compA" ? "" : "none";
+
+    // éléments
+    let nA = 0, nB = 0, nI = 0;
+    for (const p of points) {
+      p.node.setAttribute("cx", p.x);
+      p.node.setAttribute("cy", p.y);
+      const a = inA(p), b = inB(p);
+      if (a) nA++;
+      if (b) nB++;
+      if (a && b) nI++;
+      p.node.classList.toggle("on", highlighted(p));
+    }
+    const nU = nA + nB - nI;
+
+    el.cA.textContent = nA;
+    el.cB.textContent = nB;
+    el.cI.textContent = nI;
+    el.cU.textContent = nU;
+
+    el.formula.innerHTML =
+      "Card(A ∪ B) = Card(A) + Card(B) − Card(A ∩ B) &nbsp;→&nbsp; " +
+      "<b>" + nU + "</b> = <b>" + nA + "</b> + <b>" + nB + "</b> − <b>" + nI + "</b> " +
+      "<span class='ok'>✓</span>";
+
+    el.desc.innerHTML = DESC[mode] +
+      " &nbsp;—&nbsp; " + nU + " élément" + (nU > 1 ? "s" : "") +
+      " dans A ∪ B, dont " + nI + " dans A ∩ B.";
+  }
+
+  // --- interactions ------------------------------------------------------
+  function toSvg(evt) {
+    const pt = svg.createSVGPoint();
+    pt.x = evt.clientX;
+    pt.y = evt.clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  }
+
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+  let drag = null;
+
+  svg.addEventListener("pointerdown", (evt) => {
+    const t = evt.target;
+    if (t.dataset && t.dataset.circle) {
+      drag = { type: "circle", which: t.dataset.circle };
+    } else if (t.dataset && t.dataset.point !== undefined) {
+      drag = { type: "point", idx: Number(t.dataset.point) };
+    } else {
+      return;
+    }
+    svg.setPointerCapture(evt.pointerId);
+    evt.preventDefault();
+  });
+
+  svg.addEventListener("pointermove", (evt) => {
+    if (!drag) return;
+    const p = toSvg(evt);
+    if (drag.type === "circle") {
+      const c = drag.which === "A" ? A : B;
+      c.x = clamp(p.x, c.r + PAD, W - c.r - PAD);
+      c.y = clamp(p.y, c.r + PAD, H - c.r - PAD);
+    } else {
+      const q = points[drag.idx];
+      q.x = clamp(p.x, PAD, W - PAD);
+      q.y = clamp(p.y, PAD, H - PAD);
+    }
+    update();
+  });
+
+  function endDrag(evt) {
+    if (!drag) return;
+    drag = null;
+    if (svg.hasPointerCapture(evt.pointerId)) svg.releasePointerCapture(evt.pointerId);
+  }
+  svg.addEventListener("pointerup", endDrag);
+  svg.addEventListener("pointercancel", endDrag);
+
+  // onglets
+  const tabs = Array.from(document.querySelectorAll(".tabs button"));
+  tabs.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      mode = btn.dataset.mode;
+      tabs.forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+      update();
+    });
+  });
+
+  // configurations types
+  const PRESETS = {
+    secants:   [ { x: 350, y: 310, r: 175 }, { x: 550, y: 310, r: 175 } ],
+    disjoints: [ { x: 285, y: 310, r: 140 }, { x: 615, y: 310, r: 140 } ],
+    inclus:    [ { x: 545, y: 310, r: 90  }, { x: 545, y: 310, r: 215 } ]
+  };
+
+  document.querySelectorAll(".presets button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.preset;
+      if (key === "reset") {
+        const pos = initialPositions();
+        points.forEach((p, i) => { p.x = pos[i].x; p.y = pos[i].y; });
+      }
+      const cfg = PRESETS[key === "reset" ? "secants" : key];
+      Object.assign(A, cfg[0]);
+      Object.assign(B, cfg[1]);
+      update();
+    });
+  });
+
+  // --- démarrage ---------------------------------------------------------
+  buildPoints();
+  update();
+})();
+</script>
+</body>
+</html>
